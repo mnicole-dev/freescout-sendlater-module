@@ -18,8 +18,11 @@ class ProcessScheduled extends Command
                 SendLaterService::publishAndSend($thread);
                 $this->line('Sent thread '.$thread->id);
             } catch (\Throwable $e) {
-                // Meta conservé → retenté au prochain cycle. Ne casse pas les autres envois.
-                \Log::error('[sendlater] failed thread='.$thread->id.': '.$e->getMessage());
+                // Avant publication : meta conservé → retenté au prochain cycle.
+                // Si l'échec survient APRÈS la publication (ex. queue indisponible),
+                // le thread est publié mais l'email n'est peut-être pas parti : vérifier la queue.
+                \Log::error('[sendlater] failed thread='.$thread->id.': '.$e->getMessage()
+                    .' (if the thread is already published, check the mail queue)');
                 $this->error('Failed thread '.$thread->id.': '.$e->getMessage());
             }
         }

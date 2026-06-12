@@ -92,12 +92,27 @@ class SendLaterService
             return;
         }
 
-        // IMPORTANT : retirer le meta AVANT de publier/déclencher l'événement.
+        // CLAIM ATOMIQUE anti double-envoi : cron, « Envoyer maintenant » et le listener
+        // d'auto-envoi peuvent viser le même thread au même instant. Un seul UPDATE
+        // conditionnel gagne ; les autres voient 0 ligne affectée et abandonnent.
+        $claimed = Thread::where('id', $thread->id)
+            ->where('state', Thread::STATE_DRAFT)
+            ->update(['state' => Thread::STATE_PUBLISHED]);
+        if (!$claimed) {
+            return; // déjà publié ou annulé par un autre chemin
+        }
+
+        // Recharger l'état frais après le claim.
+        $thread = Thread::find($thread->id);
+        if (!$thread) {
+            return;
+        }
+
+        // IMPORTANT : retirer le meta AVANT de déclencher l'événement.
         // Le listener d'auto-envoi écoute UserReplied : sans ça → récursion.
         $thread->setMeta(self::META_KEY, null);
 
         $now = now();
-        $thread->state = Thread::STATE_PUBLISHED;
         $thread->created_at = $now; // position correcte dans le fil
         $thread->save();
 
