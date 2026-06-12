@@ -42,9 +42,21 @@
         return $modal.data('url-template').replace('__ID__', id);
     }
 
+    // La modal est rendue DANS le dropdown du bouton Send (seul point d'injection dispo).
+    // Bootstrap masque le dropdown au clic sur un item → il emporterait la modal avec lui.
+    // On la déplace donc dans <body> dès que possible.
+    function detachModal() {
+        var $modal = $('.sendlater-modal');
+        if ($modal.length && !$modal.parent().is('body')) {
+            $modal.appendTo('body');
+        }
+        return $modal;
+    }
+    $(detachModal);
+
     $(document).on('click', '.sendlater-open', function (e) {
         e.preventDefault();
-        var $modal = $('.sendlater-modal');
+        var $modal = detachModal();
         $modal.data('conversation-id', $(this).data('conversation-id'))
               .data('url-template', $(this).data('url-template'))
               .data('csrf', $(this).data('csrf'));
