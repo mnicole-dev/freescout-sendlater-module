@@ -1,0 +1,19 @@
+{
+  "name": "SendLater",
+  "alias": "sendlater",
+  "description": "Schedule replies to be sent later. The scheduled reply is sent through FreeScout's native send chain at the chosen time.",
+  "version": "1.0.0",
+  "detailsUrl": "https://github.com/mnicole-dev/freescout-sendlater-module",
+  "author": "KodeSaaS",
+  "authorUrl": "https://kodesaas.com",
+  "requiredAppVersion": "1.8.0",
+  "license": "AGPL-3.0",
+  "keywords": [],
+  "active": 0,
+  "order": 0,
+  "img": "",
+  "providers": ["Modules\\SendLater\\Providers\\SendLaterServiceProvider"],
+  "aliases": {},
+  "files": ["start.php"],
+  "requires": []
+}
