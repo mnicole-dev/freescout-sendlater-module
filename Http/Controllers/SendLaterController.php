@@ -36,7 +36,14 @@ class SendLaterController extends Controller
         SendLaterService::schedule($draft, $when, auth()->id());
         \Log::info('[sendlater] scheduled thread='.$draft->id.' conversation='.$conversation->id.' at='.$when->toIso8601String().' by user='.auth()->id());
 
-        return response()->json(['status' => 'success', 'msg' => __('Reply scheduled.')]);
+        $response = ['status' => 'success', 'msg' => __('Reply scheduled.')];
+        // Nouvelle conversation composée en draft : rediriger vers la page de la conversation
+        // (où le badge planifié est visible), la page de composition n'ayant plus d'objet.
+        if ($conversation->state == Conversation::STATE_DRAFT) {
+            $response['redirect_url'] = route('conversations.view', ['id' => $conversation->id]);
+        }
+
+        return response()->json($response);
     }
 
     public function cancel(Request $request, $conversation)

@@ -3,13 +3,16 @@
 namespace Modules\SendLater\Services;
 
 use App\Conversation;
+use App\Events\UserCreatedConversation;
 use App\Events\UserReplied;
 use App\Thread;
 use Carbon\Carbon;
 
 /**
  * Seul endroit du module qui mute threads/conversations.
- * L'envoi réel passe par l'événement natif UserReplied (listener SendReplyToCustomer → job).
+ * L'envoi réel passe par les événements natifs (UserReplied pour une réponse,
+ * UserCreatedConversation pour une nouvelle conversation rédigée en draft),
+ * tous deux branchés sur le listener SendReplyToCustomer → job.
  */
 class SendLaterService
 {
@@ -83,14 +86,18 @@ class SendLaterService
         $conversation = Conversation::find($thread->conversation_id);
 
         // Garde-fous : conversation indisponible → déplanifier sans envoyer.
+        // STATE_DRAFT est accepté : c'est une NOUVELLE conversation rédigée puis planifiée
+        // depuis la page de composition — elle sera publiée ici.
         if (!$conversation
-            || $conversation->state != Conversation::STATE_PUBLISHED
+            || $conversation->state == Conversation::STATE_DELETED
             || $conversation->status == Conversation::STATUS_SPAM
         ) {
             self::cancel($thread);
             \Log::warning('[sendlater] unscheduled without sending (conversation unavailable), thread='.$thread->id);
             return;
         }
+
+        $is_new_conversation = ($conversation->state == Conversation::STATE_DRAFT);
 
         // CLAIM ATOMIQUE anti double-envoi : cron, « Envoyer maintenant » et le listener
         // d'auto-envoi peuvent viser le même thread au même instant. Un seul UPDATE
@@ -120,12 +127,24 @@ class SendLaterService
         $conversation->last_reply_at = $now;
         $conversation->last_reply_from = Conversation::PERSON_USER;
         $conversation->user_updated_at = $now;
+        if ($is_new_conversation) {
+            // Nouvelle conversation rédigée en draft : la publier (miroir du chemin
+            // is_create+from_draft du contrôleur, réf. lignes 978/1043-1046).
+            $conversation->state = Conversation::STATE_PUBLISHED;
+            $conversation->threads_count++;
+            $conversation->setPreview($thread->body);
+        }
         $conversation->updateFolder();
         $conversation->save();
         $conversation->mailbox->updateFoldersCounters();
 
-        event(new UserReplied($conversation, $thread));
+        if ($is_new_conversation) {
+            event(new UserCreatedConversation($conversation, $thread));
+        } else {
+            event(new UserReplied($conversation, $thread));
+        }
 
-        \Log::info('[sendlater] sent thread='.$thread->id.' conversation='.$conversation->id);
+        \Log::info('[sendlater] sent thread='.$thread->id.' conversation='.$conversation->id
+            .($is_new_conversation ? ' (new conversation published)' : ''));
     }
 }

@@ -27,10 +27,27 @@
         }).done(done).fail(function () { alert('Error'); });
     }
 
+    // Id de conversation : connu au rendu (conversation existante) ou résolu après la
+    // sauvegarde du brouillon (page de composition : le cœur pose getGlobalAttr('conversation_id')).
+    function resolveConversationId($modal) {
+        var id = $modal.data('conversation-id');
+        if (id) { return id; }
+        if (typeof getGlobalAttr === 'function') { return getGlobalAttr('conversation_id') || ''; }
+        return '';
+    }
+
+    function scheduleUrl($modal) {
+        var id = resolveConversationId($modal);
+        if (!id) { return ''; }
+        return $modal.data('url-template').replace('__ID__', id);
+    }
+
     $(document).on('click', '.sendlater-open', function (e) {
         e.preventDefault();
         var $modal = $('.sendlater-modal');
-        $modal.data('url', $(this).data('url')).data('csrf', $(this).data('csrf'));
+        $modal.data('conversation-id', $(this).data('conversation-id'))
+              .data('url-template', $(this).data('url-template'))
+              .data('csrf', $(this).data('csrf'));
         $modal.find('.sendlater-datetime').val(toLocalInputValue(presetDate('1h')));
         $modal.removeClass('hidden');
     });
@@ -55,11 +72,20 @@
         var attempts = 0;
         var trySchedule = function () {
             attempts++;
-            post($modal.data('url'), $modal.data('csrf'), { scheduled_at: iso_utc }, function (resp) {
+            // L'URL est résolue à CHAQUE tentative : sur la page de composition, l'id de
+            // conversation n'existe qu'après que la sauvegarde du brouillon a abouti.
+            var url = scheduleUrl($modal);
+            if (!url) {
+                if (attempts < 4) { setTimeout(trySchedule, 900); }
+                else { alert('Draft not saved yet — please try again.'); }
+                return;
+            }
+            post(url, $modal.data('csrf'), { scheduled_at: iso_utc }, function (resp) {
                 if (resp.status === 'success') {
                     $modal.addClass('hidden');
-                    location.reload();
-                } else if (attempts < 3) {
+                    if (resp.redirect_url) { location.href = resp.redirect_url; }
+                    else { location.reload(); }
+                } else if (attempts < 4) {
                     setTimeout(trySchedule, 900);
                 } else {
                     alert(resp.msg || 'Error');

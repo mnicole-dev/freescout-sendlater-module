@@ -1,7 +1,8 @@
-@if ($conversation && $conversation->id)
 <li>
-    <a href="#" class="sendlater-open" data-conversation-id="{{ $conversation->id }}"
-       data-url="{{ route('sendlater.schedule', $conversation->id) }}" data-csrf="{{ csrf_token() }}">
+    <a href="#" class="sendlater-open"
+       data-conversation-id="{{ $conversation->id ?? '' }}"
+       data-url-template="{{ route('sendlater.schedule', ['conversation' => '__ID__']) }}"
+       data-csrf="{{ csrf_token() }}">
         <small class="glyphicon glyphicon-time"></small> {{ __('Send Later') }}…
     </a>
 </li>
@@ -21,4 +22,3 @@
         </div>
     </div>
 </div>
-@endif
